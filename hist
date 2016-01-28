@@ -1,0 +1,191 @@
+#!/usr/bin/env perl
+use Scalar::Util;
+
+my $HIST=100, $FLD=0, $MEM="", $VERB=0;
+my $DATALINE='^\s*([+-]?((\d+(\.\d*)?)|(\.\d+)|(\d*.\d+[eE][+-]?\d+))\s+)+$';
+
+while($ARGV[0]=~/^-/) {
+	my $opt=shift;
+	last if($opt eq '--');
+	
+	if($opt=~s/^-f//) {
+		$FLD=length($opt)? $opt : shift;
+		die "$FLD: invalid field selection"
+			if(not Scalar::Util::looks_like_number($FLD) or $FLD < 1);
+		$FLD--;
+
+	} elsif($opt=~s/^-n// or $opt=~s/^--size=//) {
+		$HIST=length($opt)? $opt : shift;
+
+	} elsif($opt=~s/^-m//) {
+		$MEM=length($opt)? $opt : shift;
+
+	} elsif($opt=~s/^-w//) {
+		$COMMENT_AT_END=1;;
+		unshift(@ARGV,"-$opt") if(length($opt));
+
+	} elsif($opt=~s/^-v//) {
+		$VERB++;
+		unshift(@ARGV,"-$opt") if(length($opt));
+
+	} elsif($opt=~s/^--min=//) {
+		$MIN=length($opt)? $opt : shift;
+
+	} elsif($opt=~s/^--max=//) {
+		$MAX=length($opt)? $opt : shift;
+
+	} elsif($opt=~s/^--norm//) {
+		$norm=1;
+
+	} elsif($opt=~s/^-h// or $opt=~s/^--help//) {
+		usage();
+		exit(0);
+
+	} else {
+		print STDERR "$opt: invalid option\n";
+		usage();
+		exit(1);
+	}
+}
+
+$data=<>;
+while(hist($MIN,$MAX, $HIST, $MEM)) {}
+
+
+
+sub hist
+{
+	my @stat=();
+	my $min=shift, $max=shift, $n=shift, $mem=shift;
+	my $hdr=header();
+
+	return 0 if(not defined $data);
+	print STDERR "starting hist with  $n baskets, min=$min, max=$max\n"
+		if($VERB);
+	print STDERR "header: $hdr"
+		if(length($hdr) and $VERB > 1);
+
+	my $cols=split /\s+/, $data;
+	die "field $FLD is not in the data set"
+		if($FLD >= $cols);
+
+	while($data=~/$DATALINE/) {
+		print(STDERR $data)
+			if($VERB > 1);
+		chomp $data;
+		my @data=split /\s+/, $data;
+		die "uneven columns ($cols expected) at $data"
+			if(@data < $cols);
+		
+		
+		die "$data[$FLD] is not a number in $data"
+			if(not Scalar::Util::looks_like_number($data[$FLD]));
+		push @stat, $data[$FLD];
+		
+		$data=<>;
+	}
+	print(STDERR scalar(@stat), " points read\n")
+		if($VERB);
+	
+	return 0 if(!@stat);
+	@stat=sort {$a<=>$b} @stat;
+	$min=$stat[0] if(not defined $min);
+	$max=$stat[-1] if(not defined $max);
+	my $h=$max-$min;
+	my $d=$h/$n;
+	my $drop=0, $dsize=@stat;
+	while(@stat[0] < $min) { shift @stat; $drop++; }
+	while(@stat[-1] > $max) { pop @stat; $drop++; }
+	
+
+	my @hst=();
+	for my $i (0..$n) { push @hst, 0; }
+	foreach(@stat) {
+		my $i=int(($_-$min)/$h*$n);
+		$hst[$i]++;
+	}
+	my $dr=sprintf "%.2lf", $drop/$dsize*100;
+	my $median=sprintf "%.2lf", $stat[@stat/2];
+	my $step=sprintf "%.2lf", $d;
+	if($norm) {
+		my $mx=0;
+		foreach(@hst) { $mx=($_ > $mx)? $_ : $mx; }
+		if($mx > 0) { foreach(@hst) { $_/=$mx; } }
+	}
+	
+	if(not $COMMENT_AT_END) {
+		print "$hdr";
+		if(length($mem)) {
+			$mem=~s/%%/%/g;
+			$mem=~s/%d/$dr/g;
+			$mem=~s/%m/$median/;
+			$mem=~s/%l/$min/;
+			$mem=~s/%r/$max/;
+			$mem=~s/%s/$step/;
+			$mem=~s/%n/\n/g;
+			$mem=~s/\\n/\n/g;
+			print "$mem\n";
+		}
+	}		
+		
+	my $x=$min;
+	for my $y (@hst) { print "$x $y\n"; $x+=$d; }
+	if($COMMENT_AT_END) {
+		print "$hdr";
+		if(length($mem)) {
+			$mem=~s/%%/%/g;
+			$mem=~s/%d/$dr/g;
+			$mem=~s/%m/$median/g;
+			$mem=~s/%l/$min/g;
+			$mem=~s/%r/$max/g;
+			$mem=~s/%s/$step/g;
+			$mem=~s/%n/\n/g;
+			$mem=~s/\\n/\n/g;
+			print "$mem\n";
+		}
+	}		
+	1;
+}
+
+
+	
+
+
+sub header
+{
+	my $hdr;
+	while(defined $data and not $data=~/$DATALINE/) {
+		$hdr.=$data;
+		$data=<>;
+		last if(not defined $data);
+	}
+	$hdr;
+}
+
+
+sub usage
+{
+	print
+		"hist - simple histogram builder\n",
+		"Syntax: hist [OPTIONS] {file...}\n",
+		"Options:\n",
+		"  -n <buckets>       - number of bukets in histogram\n",
+		"    or _--size=<buckets>\n",
+		"  -f <field>        - select the filed from multi-column file,\n",
+		"    starts from 1\n",
+		"  --min=<value>     - drop all the values below the min\n",
+		"  --max=<value>     - drop all the values above the max\n",
+		"  -m <format>       - add message to the histogram\n",
+		"    the following special values are recognized:\n",
+		"      %m is replaced with median average value\n",
+		"      %l is replaced with min histogram value\n",
+		"      %r is replaced with max histogram value\n",
+		"      %s is replaces with histogram step (bucket size)\n",
+		"      %d is replaces with percentage of dropped samples\n",
+		"      %% is replaced with % sign\n",
+		"  -v                - verbose, print some info about the histogram\n",
+		"  -vv               - more verbose, print out each line read\n",
+		"  -h or --help      - print this help\n";
+		;
+}
+		
