@@ -3,7 +3,7 @@ CXX= g++
 CC= g++
 CXXFLAGS= -g -pthread -std=c++11 
 LDFLAGS= 
-LDLIBS= -lboost_system 
+LDLIBS= #-lboost_thread -lboost_system 
 
 
 

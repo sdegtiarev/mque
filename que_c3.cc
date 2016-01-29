@@ -7,7 +7,6 @@
 #include <unistd.h>
 #include <assert.h>
 std::deque<timespec> que;
-int flag=0;
 std::mutex mtx;
 std::condition_variable cv1, cv2;
 
@@ -25,7 +24,6 @@ void echo()
 		clock_gettime(CLOCK_MONOTONIC, &t1);
 		std::cout<<(t1.tv_sec-t0.tv_sec)*1e9+(t1.tv_nsec-t0.tv_nsec)<<"\n";
 
-		assert(flag);
 		cv2.notify_one();
 	}
 }
@@ -45,9 +43,7 @@ int main()
 			que.push_back(t);
 
 			if(wakeup) cv1.notify_one();
-			flag=1;
 			cv2.wait(lock);
-			flag=0;
 		}
 	}
 
