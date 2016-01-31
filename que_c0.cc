@@ -33,9 +33,7 @@ int main()
 {
 	std::thread(&echo).detach();
 
-//	std::unique_lock<std::mutex> lock(mtx);
 	for(int i=0; i < 1000000; ++i) {
-//		std::unique_lock<std::mutex> lock(mtx);
 		timespec t;
 		clock_gettime(CLOCK_MONOTONIC, &t);
 		std::unique_lock<std::mutex> lock(mtx);
