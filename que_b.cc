@@ -32,9 +32,9 @@ void echo()
 }
 
 
-void submit(work_p w_)
+void submit()
 {
-	work_p w{std::move(w_)};
+	work_p w{new work(io)}};
 	std::unique_lock<std::mutex> lock(mtx);
 	for(int i=0; i < 1000000; ++i) {
 		timespec t;
@@ -48,7 +48,7 @@ void submit(work_p w_)
 
 int main()
 {
-	std::thread(&submit, work_p{new work(io)}).detach();
+	std::thread(&submit).detach();
 	return io.run();
 }
 

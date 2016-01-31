@@ -1,6 +1,5 @@
 import std.stdio, std.concurrency, std.datetime, core.thread;
 
-
 void main()
 {
 	immutable int N=1000000;
@@ -8,11 +7,10 @@ void main()
 	foreach(i; 0..N) {
 		auto t=MonoTime.currTime;
 		tid.send(thisTid, t.ticks);
-		// wait receiver for 
+		// wait receiver for handle message
 		receiveOnly!int();
 	}
 }
-
 
 void f(int n)
 {
